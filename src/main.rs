@@ -128,7 +128,7 @@ impl App {
                     self.status_message = "Solve sudoku not implemented yet.".to_string();
                 }
                 KeyCode::Char(c) if ('1'..='9').contains(&c) => {
-                    let value = c.to_digit(10).unwrap_or(0) as u8;
+                    let value = c.to_digit(10).unwrap() as u8;
                     self.update_cell(value);
                     self.status_message = format!(
                         "Set cell ({}, {}) to {}.",
