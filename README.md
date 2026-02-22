@@ -24,3 +24,7 @@ sudoku array is using array2d library as data structure
 DO NOT implement  solve sudoku function, i will implement it.
 DO NOT implement Generate sudoku feature.
 over.
+
+
+## for update 
+Add a scrollable list int to left of the sudoku grid, named "event list"

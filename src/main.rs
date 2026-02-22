@@ -1,4 +1,4 @@
-use std::io;
+use color_eyre;
 
 use array2d::Array2D;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
@@ -19,6 +19,7 @@ pub struct App {
     exit: bool,
 }
 
+//Default value implementation
 impl Default for App {
     fn default() -> Self {
         Self {
@@ -33,11 +34,11 @@ impl Default for App {
     }
 }
 
+//ratatui required fuction implementation
 impl App {
     const HINT: &'static str = "Move: hjkl/arrow | Set: 1-9 | Clear: 0 | Solve: s | Quit: q";
 
-    /// runs the application's main loop until the user quits
-    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> io::Result<()> {
+    pub fn run(&mut self, terminal: &mut DefaultTerminal) -> color_eyre::Result<()> {
         while !self.exit {
             terminal.draw(|frame| self.draw(frame))?;
             self.handle_events()?;
@@ -45,10 +46,11 @@ impl App {
         Ok(())
     }
 
+    //layout
     fn draw(&self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(9), Constraint::Length(3)])
+            .constraints([Constraint::Min(9), Constraint::Length(4)])
             .split(frame.area());
 
         let grid = Paragraph::new(Text::from(self.grid_lines()))
@@ -61,11 +63,12 @@ impl App {
         frame.render_widget(status, chunks[1]);
     }
 
+    //sudoku grid
     fn grid_lines(&self) -> Vec<Line<'_>> {
         let mut lines = Vec::new();
         for row in 0..9 {
             if row > 0 && row % 3 == 0 {
-                lines.push(Line::from("────────┼────────┼────────"));
+                lines.push(Line::from("──────┼───────┼──────"));
             }
             let mut spans: Vec<Span> = Vec::new();
             for col in 0..9 {
@@ -94,7 +97,7 @@ impl App {
         lines
     }
 
-    fn handle_events(&mut self) -> io::Result<()> {
+    fn handle_events(&mut self) -> color_eyre::Result<()> {
         let event = event::read()?;
         if let Event::Key(key_event) = event {
             if key_event.kind != KeyEventKind::Press {
@@ -125,7 +128,8 @@ impl App {
                     );
                 }
                 KeyCode::Char('s') => {
-                    self.status_message = "Solve sudoku not implemented yet.".to_string();
+                    self.status_message = "Solve sudoku!".to_string();
+                    solve_sudoku(&mut self.sudoku_array);
                 }
                 KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                     let value = c.to_digit(10).unwrap() as u8;
@@ -150,8 +154,7 @@ impl App {
         self.selected_col = new_col;
         self.status_message = format!(
             "Selected cell ({}, {}).",
-            self.selected_row + 1,
-            self.selected_col + 1
+            self.selected_row, self.selected_col
         );
     }
 
@@ -169,6 +172,19 @@ fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
     ratatui::run(|terminal| App::default().run(terminal))?;
     Ok(())
+}
+
+fn solve_sudoku(arr: &mut Array2D<u8>) {
+    for row in 0..9 {
+        for col in 0..9 {
+            for num in 1..10 {
+                //check small grid
+                //
+                // check column
+                //check row
+            }
+        }
+    }
 }
 
 #[cfg(test)]
