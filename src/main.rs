@@ -198,4 +198,13 @@ mod tests {
         app.update_cell(5);
         assert_eq!(app.sudoku_array[(0, 0)], 5);
     }
+
+    #[test]
+    #[ignore]
+    fn render_snapshot_to_stdout() {
+        let app = App::default();
+        for line in app.grid_lines() {
+            println!("{line}");
+        }
+    }
 }
