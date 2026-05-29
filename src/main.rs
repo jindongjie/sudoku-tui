@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Paragraph},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
 };
 
 #[derive(Debug)]
@@ -16,19 +16,26 @@ pub struct App {
     selected_row: usize,
     selected_col: usize,
     status_message: String,
+    event_log: Vec<String>,
+    event_scroll: Option<usize>,
+    event_offset: usize,
     exit: bool,
 }
 
 //Default value implementation
 impl Default for App {
     fn default() -> Self {
+        let status_message = String::from(
+            "Use hjkl/arrow to move, numbers to fill, 0 to clear, s to solve (todo), q to quit",
+        );
         Self {
             sudoku_array: Array2D::filled_with(0, 9, 9),
             selected_row: 0,
             selected_col: 0,
-            status_message: String::from(
-                "Use hjkl/arrow to move, numbers to fill, 0 to clear, s to solve (todo), q to quit",
-            ),
+            event_log: vec![status_message.clone()],
+            event_scroll: None,
+            event_offset: 0,
+            status_message,
             exit: false,
         }
     }
@@ -47,15 +54,38 @@ impl App {
     }
 
     //layout
-    fn draw(&self, frame: &mut Frame) {
+    fn draw(&mut self, frame: &mut Frame) {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(9), Constraint::Length(4)])
             .split(frame.area());
 
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Length(24), Constraint::Min(9)])
+            .split(chunks[0]);
+
+        let event_items: Vec<ListItem<'_>> = self
+            .event_log
+            .iter()
+            .map(|msg| ListItem::new(msg.as_str()))
+            .collect();
+        let event_height = main_chunks[0].height.saturating_sub(2) as usize;
+        let max_offset = self.event_log.len().saturating_sub(event_height);
+        let offset = self
+            .event_scroll
+            .map(|offset| offset.min(max_offset))
+            .unwrap_or(max_offset);
+        self.event_offset = offset;
+        let mut event_state = ListState::default();
+        *event_state.offset_mut() = offset;
+        let event_list = List::new(event_items)
+            .block(Block::default().title("Event List").borders(Borders::ALL));
+        frame.render_stateful_widget(event_list, main_chunks[0], &mut event_state);
+
         let grid = Paragraph::new(Text::from(self.grid_lines()))
             .block(Block::default().title("Sudoku").borders(Borders::ALL));
-        frame.render_widget(grid, chunks[0]);
+        frame.render_widget(grid, main_chunks[1]);
 
         let status_text = format!("{}\n{}", Self::HINT, self.status_message);
         let status = Paragraph::new(status_text)
@@ -119,27 +149,33 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => {
                     self.move_selection(1, 0);
                 }
+                KeyCode::PageUp => {
+                    self.scroll_event_log(-1);
+                }
+                KeyCode::PageDown => {
+                    self.scroll_event_log(1);
+                }
                 KeyCode::Char('0') => {
                     self.update_cell(0);
-                    self.status_message = format!(
+                    self.set_status(format!(
                         "Cleared cell ({}, {}).",
                         self.selected_row + 1,
                         self.selected_col + 1
-                    );
+                    ));
                 }
                 KeyCode::Char('s') => {
-                    self.status_message = "Solve sudoku!".to_string();
+                    self.set_status("Solve sudoku!".to_string());
                     solve_sudoku(&mut self.sudoku_array);
                 }
                 KeyCode::Char(c) if ('1'..='9').contains(&c) => {
                     let value = c.to_digit(10).unwrap() as u8;
                     self.update_cell(value);
-                    self.status_message = format!(
+                    self.set_status(format!(
                         "Set cell ({}, {}) to {}.",
                         self.selected_row + 1,
                         self.selected_col + 1,
                         value
-                    );
+                    ));
                 }
                 _ => {}
             }
@@ -152,10 +188,11 @@ impl App {
         let new_col = (self.selected_col as i32 + col_delta).clamp(0, 8) as usize;
         self.selected_row = new_row;
         self.selected_col = new_col;
-        self.status_message = format!(
+        self.set_status(format!(
             "Selected cell ({}, {}).",
-            self.selected_row, self.selected_col
-        );
+            self.selected_row + 1,
+            self.selected_col + 1
+        ));
     }
 
     fn update_cell(&mut self, value: u8) {
@@ -165,6 +202,23 @@ impl App {
         {
             *cell = value;
         }
+    }
+
+    fn set_status<S: Into<String>>(&mut self, message: S) {
+        let message = message.into();
+        self.status_message = message.clone();
+        self.event_log.push(message);
+        self.event_scroll = None;
+    }
+
+    fn scroll_event_log(&mut self, delta: i32) {
+        let len = self.event_log.len();
+        let current = self
+            .event_scroll
+            .unwrap_or(self.event_offset)
+            .min(len.saturating_sub(1)) as i32;
+        let new_scroll = (current + delta).clamp(0, len.saturating_sub(1) as i32) as usize;
+        self.event_scroll = Some(new_scroll);
     }
 }
 
@@ -213,6 +267,17 @@ mod tests {
         let mut app = App::default();
         app.update_cell(5);
         assert_eq!(app.sudoku_array[(0, 0)], 5);
+    }
+
+    #[test]
+    fn set_status_updates_event_log() {
+        let mut app = App::default();
+        let initial_len = app.event_log.len();
+        app.set_status("Test event");
+        assert_eq!(app.status_message, "Test event");
+        assert_eq!(app.event_log.len(), initial_len + 1);
+        assert_eq!(app.event_log.last().unwrap(), "Test event");
+        assert!(app.event_scroll.is_none());
     }
 
     #[test]
